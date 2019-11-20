@@ -2,11 +2,15 @@ package com.github.paddan.sftpserver
 
 import io.kotlintest.shouldBe
 import net.schmizz.sshj.SSHClient
+import net.schmizz.sshj.xfer.InMemoryDestFile
+import net.schmizz.sshj.xfer.InMemorySourceFile
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.RegisterExtension
+import java.io.ByteArrayOutputStream
 
-internal class SftpServerMockExtensionTest {
+class SftpServerMockExtensionTest {
     companion object {
         const val userName = "user"
         const val password = "pwd"
@@ -18,23 +22,52 @@ internal class SftpServerMockExtensionTest {
     private val sshClient = SSHClient()
 
     @BeforeEach
-    internal fun setUp() {
+    fun setUp() {
         sshClient.addHostKeyVerifier { _, _, _ -> true }
         sshClient.connect("localhost", sftpServer.port)
         sshClient.authPassword(userName, password)
     }
 
+    @AfterEach
+    internal fun tearDown() {
+        sftpServer.deleteAll("/")
+    }
+
     @Test
-    internal fun `should upload file`() {
+    fun `should upload file`() {
         // Given
-        val sftpClient = sshClient.newSFTPClient()
+        val sftp = sshClient.newSFTPClient()
         val fileName = "new_file.txt"
-        val fileContent = "Hello world!"
+        val data = "Hello world!"
+        val inputStream = data.byteInputStream()
+        val inMemoryFile = object : InMemorySourceFile() {
+            override fun getLength() = inputStream.available().toLong()
+            override fun getName() = fileName
+            override fun getInputStream() = inputStream
+        }
 
         // When
-        sftpClient.put(fileContent, fileName)
+        sftp.put(inMemoryFile, "/")
 
         // Then
-        sftpServer.getFileContent(fileName) shouldBe fileContent
+        sftpServer.getFileContent("/$fileName") shouldBe data
+    }
+
+    @Test
+    fun `should download file`() {
+        // Given
+        val sftp = sshClient.newSFTPClient()
+        val fileName = "/new_file.txt"
+        val data = "Hello world!"
+        sftpServer.putFile(fileName, data.byteInputStream())
+        val outputStream = ByteArrayOutputStream()
+        val inMemoryFile = object : InMemoryDestFile() {
+            override fun getOutputStream() = outputStream
+        }
+        // When
+        sftp.get(fileName, inMemoryFile)
+
+        // Then
+        String(outputStream.toByteArray(), Charsets.UTF_8) shouldBe data
     }
 }

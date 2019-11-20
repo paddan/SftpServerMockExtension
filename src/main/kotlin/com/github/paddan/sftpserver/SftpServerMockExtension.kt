@@ -33,7 +33,8 @@ class SftpServerMockExtension(userName: String, password: String, port: Int = 0)
     private val fs = newLinux().build("MockSftpServer:${UUID.randomUUID()}")
     private val sshd = SshServer.setUpDefaultServer()
 
-    val port = sshd.port
+    val port: Int
+        get() = sshd.port
 
     init {
         sshd.port = if (port == 0) Random.nextInt(2000, 65000) else port
