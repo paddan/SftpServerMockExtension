@@ -3,12 +3,6 @@
 ## Description
 A jUnit 5 mock extension for a in-memory sft server written in kotlin.
 
-```
-public class InjectTarget extends SuperInjectTarget {
-    private final String finalField = "Final!"; // This field will be inlined during compilation!
-}
-```
-
 ## Maven and gradle usage
 
 ### Maven
