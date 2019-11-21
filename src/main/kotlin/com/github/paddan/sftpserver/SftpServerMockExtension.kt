@@ -19,6 +19,7 @@ import java.nio.file.Files.copy
 import java.nio.file.Files.exists
 import java.nio.file.Files.isDirectory
 import java.nio.file.Files.readAllBytes
+import java.nio.file.NoSuchFileException
 import java.nio.file.Path
 import java.nio.file.PathMatcher
 import java.nio.file.WatchService
@@ -30,58 +31,65 @@ import kotlin.streams.toList
 
 class SftpServerMockExtension(userName: String, password: String, port: Int = 0) : BeforeAllCallback, AfterAllCallback {
 
-    private val fs = newLinux().build("MockSftpServer:${UUID.randomUUID()}")
-    private val sshd = SshServer.setUpDefaultServer()
+    private val fileSystem = newLinux().build("MockSftpServer:${UUID.randomUUID()}")
+    private val sshServer = SshServer.setUpDefaultServer()
 
     val port: Int
-        get() = sshd.port
+        get() = sshServer.port
 
     init {
-        sshd.port = if (port == 0) Random.nextInt(2000, 65000) else port
-        sshd.keyPairProvider = SimpleGeneratorHostKeyProvider()
-        sshd.subsystemFactories = listOf(SftpSubsystemFactory())
-        sshd.fileSystemFactory = FileSystemFactory { DoNotCloseFileSystem(fs) }
-        sshd.passwordAuthenticator = PasswordAuthenticator { uname, pwd, _ ->
+        sshServer.port = if (port == 0) Random.nextInt(2000, 65000) else port
+        sshServer.keyPairProvider = SimpleGeneratorHostKeyProvider()
+        sshServer.subsystemFactories = listOf(SftpSubsystemFactory())
+        sshServer.fileSystemFactory = FileSystemFactory { DoNotCloseFileSystem(fileSystem) }
+        sshServer.passwordAuthenticator = PasswordAuthenticator { uname, pwd, _ ->
             uname == userName && pwd == password
         }
     }
 
-    fun deleteAll(vararg paths: String) {
-        paths.forEach { path ->
-            Files.walk(fs.getPath(path))
+    fun rm(path: String, recursive: Boolean = false) {
+        if (recursive) {
+            Files.walk(fileSystem.getPath(path))
                 .sorted(reverseOrder())
                 .toList()
-                .dropLast(1) // This is the root dir and cannot be deleted
+                .filter { it.toString() != "/" } // Can't delete root
                 .forEach(Files::delete)
+        } else {
+            Files.delete(fileSystem.getPath(path))
         }
     }
 
-    override fun beforeAll(context: ExtensionContext?) = sshd.start()
+    override fun beforeAll(context: ExtensionContext?) = sshServer.start()
 
     override fun afterAll(context: ExtensionContext?) {
-        deleteAll("/")
-        sshd.stop(true)
+        sshServer.stop(true)
+        fileSystem.close()
     }
 
-    fun createDirs(vararg paths: String) {
-        for (path in paths)
-            createDir(path)
-    }
+    fun mkdir(vararg paths: String) =
+        paths.forEach {
+            Files.createDirectories(fileSystem.getPath(it))
+        }
 
-    fun listAll(path: String = "/") = Files.walk(fs.getPath(path))
-        .sorted(reverseOrder())
-        .map { it.toString() }.toList()
+    fun listAll(path: String = "/") =
+        try {
+            Files.walk(fileSystem.getPath(path))
+                .sorted(reverseOrder())
+                .map { it.toString() }.toList()
+        } catch (e: NoSuchFileException) {
+            emptyList<String>()
+        }
 
-    fun createDir(path: String): Path = Files.createDirectories(fs.getPath(path))
+    fun getFileContent(path: String, encoding: Charset = UTF_8) = String(readAllBytes(fileSystem.getPath(path)), encoding)
 
-    fun getFileContent(path: String, encoding: Charset = UTF_8) = String(readAllBytes(fs.getPath(path)), encoding)
+    fun existsFile(path: String) = exists(fileSystem.getPath(path)) && !isDirectory(fileSystem.getPath(path))
 
-    fun existsFile(path: String) = exists(fs.getPath(path)) && !isDirectory(fs.getPath(path))
+    fun existsDir(path: String) = exists(fileSystem.getPath(path)) && isDirectory(fileSystem.getPath(path))
 
-    fun putFile(path: String, inputStream: InputStream) = copy(inputStream, fs.getPath(path))
+    fun putFile(path: String, inputStream: InputStream) = copy(inputStream, fileSystem.getPath(path))
 }
 
-internal class DoNotCloseFileSystem(val fileSystem: FileSystem) : FileSystem() {
+internal class DoNotCloseFileSystem(private val fileSystem: FileSystem) : FileSystem() {
     override fun provider(): FileSystemProvider = fileSystem.provider()
     override fun close() = Unit
     override fun isOpen() = fileSystem.isOpen

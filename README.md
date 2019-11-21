@@ -17,7 +17,7 @@ A jUnit 5 mock extension for a in-memory sft server written in kotlin.
 <dependency>
   <groupId>com.github.paddan</groupId>
   <artifactId>SftpServerMockExtension</artifactId>
-  <version>1.0</version>
+  <version>1.1</version>
 </dependency>
 ```
 
@@ -28,7 +28,7 @@ repositories {
 }
 
 dependencies {
-    testCompile 'com.github.paddan:SftpServerMockExtension:1.0'
+    testCompile 'com.github.paddan:SftpServerMockExtension:1.1'
 }
 ```
 

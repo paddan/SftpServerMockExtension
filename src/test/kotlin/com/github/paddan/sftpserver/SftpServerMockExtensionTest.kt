@@ -1,5 +1,7 @@
 package com.github.paddan.sftpserver
 
+import io.kotlintest.matchers.collections.shouldContainExactlyInAnyOrder
+import io.kotlintest.matchers.collections.shouldHaveSize
 import io.kotlintest.shouldBe
 import net.schmizz.sshj.SSHClient
 import net.schmizz.sshj.xfer.InMemoryDestFile
@@ -12,11 +14,12 @@ import java.io.ByteArrayOutputStream
 
 class SftpServerMockExtensionTest {
     companion object {
-        const val userName = "user"
-        const val password = "pwd"
-        @RegisterExtension
+        const val user = "user"
+        const val pwd = "pwd"
+
         @JvmField
-        val sftpServer = SftpServerMockExtension(userName, password)
+        @RegisterExtension
+        val sftpServer = SftpServerMockExtension(user, pwd)
     }
 
     private val sshClient = SSHClient()
@@ -25,12 +28,12 @@ class SftpServerMockExtensionTest {
     fun setUp() {
         sshClient.addHostKeyVerifier { _, _, _ -> true }
         sshClient.connect("localhost", sftpServer.port)
-        sshClient.authPassword(userName, password)
+        sshClient.authPassword(user, pwd)
     }
 
     @AfterEach
     internal fun tearDown() {
-        sftpServer.deleteAll("/")
+        sftpServer.rm("/", true)
     }
 
     @Test
@@ -50,6 +53,7 @@ class SftpServerMockExtensionTest {
         sftp.put(inMemoryFile, "/")
 
         // Then
+        sftpServer.existsFile("/$fileName") shouldBe true
         sftpServer.getFileContent("/$fileName") shouldBe data
     }
 
@@ -64,10 +68,55 @@ class SftpServerMockExtensionTest {
         val inMemoryFile = object : InMemoryDestFile() {
             override fun getOutputStream() = outputStream
         }
+
         // When
         sftp.get(fileName, inMemoryFile)
 
         // Then
         String(outputStream.toByteArray(), Charsets.UTF_8) shouldBe data
+    }
+
+    @Test
+    fun `should delete file`() {
+        // Given
+        val sftp = sshClient.newSFTPClient()
+        val fileName = "/new_file.txt"
+        val data = "Hello world!"
+        sftpServer.putFile(fileName, data.byteInputStream())
+
+        // When
+        sftp.rm(fileName)
+
+        // Then
+        sftpServer.existsFile(fileName) shouldBe false
+    }
+
+    @Test
+    fun `should delete dir`() {
+        // Given
+        val sftp = sshClient.newSFTPClient()
+        val dirName = "/new_dir"
+        sftpServer.mkdir(dirName)
+
+        // When
+        sftp.rmdir(dirName)
+
+        // Then
+        sftpServer.existsDir(dirName) shouldBe false
+        sftpServer.listAll(dirName) shouldHaveSize 0
+    }
+
+    @Test
+    fun `should create dir`() {
+        // Given
+        val sftp = sshClient.newSFTPClient()
+        val dirName = "/new_dir"
+
+        // When
+        sftp.mkdir(dirName)
+
+        // Then
+        sftpServer.existsDir(dirName) shouldBe true
+        sftpServer.listAll(dirName) shouldContainExactlyInAnyOrder listOf(dirName)
     }
 }
