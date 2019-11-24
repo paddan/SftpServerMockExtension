@@ -34,4 +34,6 @@ dependencies {
 
 ## SftpServerMockExtension
 
-For a jUnit 5 test in kotlin see [SftpServerMockExtensionTest](src/test/kotlin/com/github/paddan/sftpserver/SftpServerMockExtensionTest.kt)
+For jUnit 5 tests in kotlin see [SftpServerMockExtensionKotlinTest](src/test/kotlin/com/github/paddan/sftpserver/SftpServerMockExtensionKotlinTest.kt)
+
+For jUnit 5 tests in java see [SftpServerMockExtensionJavaTest](src/test/java/com/github/paddan/sftpserver/SftpServerMockExtensionJavaTest.java)

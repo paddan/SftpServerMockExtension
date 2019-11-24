@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.RegisterExtension
 import java.io.ByteArrayOutputStream
 
-class SftpServerMockExtensionTest {
+class SftpServerMockExtensionKotlinTest {
     companion object {
         const val user = "user"
         const val pwd = "pwd"
