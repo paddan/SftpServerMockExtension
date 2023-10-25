@@ -1,32 +1,46 @@
 package com.github.paddan.sftpserver;
 
-import com.github.paddan.sftpserver.SftpServerMockExtension;
 import net.schmizz.sshj.SSHClient;
 import net.schmizz.sshj.sftp.SFTPClient;
+import net.schmizz.sshj.transport.verification.HostKeyVerifier;
 import net.schmizz.sshj.xfer.InMemoryDestFile;
 import net.schmizz.sshj.xfer.InMemorySourceFile;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
 import java.io.*;
+import java.security.PublicKey;
+import java.util.Collections;
+import java.util.List;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class SftpServerMockExtensionJavaTest {
-    private static String user = "user";
-    private static String pwd = "pwd";
+    private static final String user = "user";
+    private static final String pwd = "pwd";
 
     @RegisterExtension
     static SftpServerMockExtension sftpServer = new SftpServerMockExtension(user, pwd, 0);
-    private SSHClient sshClient = new SSHClient();
+    private final SSHClient sshClient = new SSHClient();
 
     @BeforeEach
     void setUp() throws IOException {
-        sshClient.addHostKeyVerifier((hostname, port, key) -> true);
+        var hostKeyVerifier = new HostKeyVerifier() {
+            @Override
+            public boolean verify(String hostname, int port, PublicKey key) {
+                return true;
+            }
+
+            @Override
+            public List<String> findExistingAlgorithms(String hostname, int port) {
+                return Collections.emptyList();
+            }
+        };
+
+        sshClient.addHostKeyVerifier(hostKeyVerifier);
         sshClient.connect("localhost", sftpServer.getPort());
         sshClient.authPassword(user, pwd);
     }
@@ -54,13 +68,13 @@ public class SftpServerMockExtensionJavaTest {
                 try {
                     return inputStream.available();
                 } catch (IOException e) {
-                    e.printStackTrace();
+                    fail(e.getMessage());
                 }
                 return 0;
             }
 
             @Override
-            public InputStream getInputStream() throws IOException {
+            public InputStream getInputStream() {
                 return inputStream;
             }
         };
@@ -83,7 +97,17 @@ public class SftpServerMockExtensionJavaTest {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         InMemoryDestFile inMemoryFile = new InMemoryDestFile() {
             @Override
-            public OutputStream getOutputStream() throws IOException {
+            public long getLength() {
+                return data.length();
+            }
+
+            @Override
+            public OutputStream getOutputStream() {
+                return outputStream;
+            }
+
+            @Override
+            public OutputStream getOutputStream(boolean append) {
                 return outputStream;
             }
         };
@@ -92,7 +116,7 @@ public class SftpServerMockExtensionJavaTest {
         sftp.get(fileName, inMemoryFile);
 
         // Then
-        assertEquals(data, new String(outputStream.toByteArray(), UTF_8));
+        assertEquals(data, outputStream.toString(UTF_8));
     }
 
     @Test

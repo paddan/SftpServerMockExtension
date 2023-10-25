@@ -4,6 +4,7 @@ import io.kotlintest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotlintest.matchers.collections.shouldHaveSize
 import io.kotlintest.shouldBe
 import net.schmizz.sshj.SSHClient
+import net.schmizz.sshj.transport.verification.HostKeyVerifier
 import net.schmizz.sshj.xfer.InMemoryDestFile
 import net.schmizz.sshj.xfer.InMemorySourceFile
 import org.junit.jupiter.api.AfterEach
@@ -11,6 +12,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.RegisterExtension
 import java.io.ByteArrayOutputStream
+import java.security.PublicKey
 
 class SftpServerMockExtensionKotlinTest {
     companion object {
@@ -26,7 +28,11 @@ class SftpServerMockExtensionKotlinTest {
 
     @BeforeEach
     fun setUp() {
-        sshClient.addHostKeyVerifier { _, _, _ -> true }
+        val hostKeyVerifier = object : HostKeyVerifier {
+            override fun verify(hostname: String?, port: Int, key: PublicKey?) = true
+            override fun findExistingAlgorithms(hostname: String?, port: Int): MutableList<String> = mutableListOf()
+        }
+        sshClient.addHostKeyVerifier(hostKeyVerifier)
         sshClient.connect("localhost", sftpServer.port)
         sshClient.authPassword(user, pwd)
     }
@@ -66,7 +72,9 @@ class SftpServerMockExtensionKotlinTest {
         sftpServer.putFile(fileName, data.byteInputStream())
         val outputStream = ByteArrayOutputStream()
         val inMemoryFile = object : InMemoryDestFile() {
+            override fun getLength(): Long = data.length.toLong()
             override fun getOutputStream() = outputStream
+            override fun getOutputStream(append: Boolean) = outputStream
         }
 
         // When

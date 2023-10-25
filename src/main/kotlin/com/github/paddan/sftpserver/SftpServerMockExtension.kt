@@ -27,7 +27,6 @@ import java.nio.file.attribute.UserPrincipalLookupService
 import java.nio.file.spi.FileSystemProvider
 import java.util.UUID
 import kotlin.random.Random
-import kotlin.streams.toList
 
 class SftpServerMockExtension(userName: String, password: String, port: Int = 0) : BeforeAllCallback, AfterAllCallback {
 
