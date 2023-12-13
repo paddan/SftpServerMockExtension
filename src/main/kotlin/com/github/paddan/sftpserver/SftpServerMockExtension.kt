@@ -2,10 +2,11 @@ package com.github.paddan.sftpserver
 
 import com.github.marschall.memoryfilesystem.MemoryFileSystemBuilder.newLinux
 import org.apache.sshd.common.file.FileSystemFactory
+import org.apache.sshd.common.session.SessionContext
 import org.apache.sshd.server.SshServer
 import org.apache.sshd.server.auth.password.PasswordAuthenticator
 import org.apache.sshd.server.keyprovider.SimpleGeneratorHostKeyProvider
-import org.apache.sshd.server.subsystem.sftp.SftpSubsystemFactory
+import org.apache.sshd.sftp.server.SftpSubsystemFactory
 import org.junit.jupiter.api.extension.AfterAllCallback
 import org.junit.jupiter.api.extension.BeforeAllCallback
 import org.junit.jupiter.api.extension.ExtensionContext
@@ -40,7 +41,7 @@ class SftpServerMockExtension(userName: String, password: String, port: Int = 0)
         sshServer.port = if (port == 0) Random.nextInt(2000, 65000) else port
         sshServer.keyPairProvider = SimpleGeneratorHostKeyProvider()
         sshServer.subsystemFactories = listOf(SftpSubsystemFactory())
-        sshServer.fileSystemFactory = FileSystemFactory { DoNotCloseFileSystem(fileSystem) }
+        sshServer.fileSystemFactory = DoNotCloseFileSystemFactory(fileSystem)
         sshServer.passwordAuthenticator = PasswordAuthenticator { uname, pwd, _ ->
             uname == userName && pwd == password
         }
@@ -86,6 +87,12 @@ class SftpServerMockExtension(userName: String, password: String, port: Int = 0)
     fun existsDir(path: String) = exists(fileSystem.getPath(path)) && isDirectory(fileSystem.getPath(path))
 
     fun putFile(path: String, inputStream: InputStream) = copy(inputStream, fileSystem.getPath(path))
+}
+
+internal class DoNotCloseFileSystemFactory(private val fileSystem: FileSystem) : FileSystemFactory {
+    override fun getUserHomeDir(session: SessionContext?): Path = fileSystem.getPath("/")
+
+    override fun createFileSystem(session: SessionContext?)  = DoNotCloseFileSystem(fileSystem)
 }
 
 internal class DoNotCloseFileSystem(private val fileSystem: FileSystem) : FileSystem() {
